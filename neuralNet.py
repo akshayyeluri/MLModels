@@ -17,7 +17,7 @@ class NeuralNet():
             - sizes: array-like, shape (nLevels + 1,). Gives the size of each 
                   layer of the neural net
             - eta: scalar (float) learning rate, defaults to 0.1
-            - theta: function, applied to the signal at each level to introduce 
+            - theta: Activating function, applied to the signal at each level to introduce 
                   nonlinearity into the model
             - dTheta_ds: function, the derivative of the theta function
             - E: the pointwise error/loss function, returns the error of the 
