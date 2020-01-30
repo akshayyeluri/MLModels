@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from . import utils as u
+from MLModels import utils as u
 
 class NeuralNet():
     

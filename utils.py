@@ -5,22 +5,16 @@ Utilities for learning models
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-def sign(n):
-    '''The sign function'''
-    return -1 + 2 * (n >= 0)
-
-
 def genPoints(nPoints=1):
     ''' Generate points in interval [-1, 1] x [-1, 1]'''
     return np.random.rand(nPoints, 2) * 2 - 1
 
-
-def genF():
+def genF(zero_one=False):
     ''' 
     Generate a random function f: [-1, 1] x [-1, 1] -> {-1, 1}. Returns both
     this function, and the line it defines in space, which is represented as 
-    a 3-tuple of the form (a, b, c), for a line ax + by + c = 0
+    a 3-tuple of the form (a, b, c), for a line ax + by + c = 0. Set zero_one
+    to True to have the range of this function be {0, 1} instead
     '''
     # Pick 2 points, find vector between them
     ps = genPoints(2)
@@ -30,18 +24,23 @@ def genF():
     # other side to +1, by computing a determinant
     def f(point):
         v1 = point - ps[0]
-        return sign(np.linalg.det([v0, v1]))
-    return f, (v0[1], -v0[0], v0[0] * ps[0, 1] - v0[1] * ps[0, 0])
+        return np.sign(np.linalg.det([v0, v1]))
+    line = (v0[1], -v0[0], v0[0] * ps[0, 1] - v0[1] * ps[0, 0])
+    if not zero_one:
+        return f, line
+    return (lambda x: (f(x) + 1) // 2), line
 
 
-def genData(f, n):
+def genData(f, n, appendOnes=True):
     '''
-    Given a target function f, generate training data, where 1 is appended
-    to the points (to make inputs 3-d), and outputs are what f maps each
+    Given a target function f, generate training data, where 1 is optionally 
+    appended to the points (to make inputs 3-d), and outputs are what f maps each
     point to.
     '''
     points = genPoints(n)
     outputs = np.array([f(point) for point in points])
+    if not appendOnes:
+        return points, outputs
     return np.hstack((np.ones(shape=(n, 1)), points)), outputs
 
 

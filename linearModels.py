@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from . import utils as u
+from MLModels import utils as u
 
 
 
@@ -111,7 +111,7 @@ class Perceptron(LinearModel):
     def calculate(self, x):                                                     
         '''Calculate the hypothesis value for x (sign of the signal)'''         
         s = self.signal(x)
-        return u.sign(s)
+        return np.sign(s)
 
 
     def err(self, x, y):                                                        
