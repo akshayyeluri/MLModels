@@ -3,8 +3,9 @@ import scipy.stats as st
 import matplotlib.pyplot as plt
 import networkx as nx
 #from MLModels import utils as u
+# This is the larger MLModels library I'm making
 
-class DecisionTree(): 
+class DecisionTree():
     class Node():
         def __init__(self, value, depth, iD):
             self.value=value
@@ -38,6 +39,7 @@ class DecisionTree():
         self.maxNodes = None
         
     def tree_print(self, node=None):
+        '''Print the decision tree'''
         if not node:
             node=self.root
         node.nPrint()
@@ -46,6 +48,10 @@ class DecisionTree():
             self.tree_print(node.kids[1])
         
     def split(self, node, X, Y):
+        '''
+        Recursively split nodes, to train the tree, checking for termination
+        conditions at each split
+        '''
         if (node.depth >= self.maxDepth) or (self.totalNodes >= self.maxNodes - 2) :
             return
         
@@ -89,6 +95,9 @@ class DecisionTree():
         self.split(node.kids[1], X_r, Y_r) 
                                                                                                                                                       
     def learn(self, X, Y, **conditions):
+        '''
+        Train a tree given termination conditions
+        '''
         # Get termination conditions
         self.maxDepth = conditions.get('maxDepth', np.inf)                           
         self.minPoints = conditions.get('minPoints', 0)
@@ -101,6 +110,7 @@ class DecisionTree():
         self.split(self.root, X, Y)
     
     def decide(self, node, X):
+        ''' Recursively traverse the tree to find proper outputs for input X'''
         if node.kids is None:
             return np.full(X.shape[0], node.value)
         Y = np.empty(X.shape[0])
@@ -110,9 +120,16 @@ class DecisionTree():
         return Y
     
     def calculate(self, X):
+        '''Evaluate the tree on inputs X'''
         return self.decide(self.root, X)
     
     def get_partitions(self, tot_bounds=None):
+        '''
+        Get the partitions induced by the tree. For a tree taking
+        d-vectors (d features), a partition is a 2d+1 vector, where
+        there is a lower/upper bound for each dimension, followed by
+        a final output for the partition.
+        '''
         patches = [] 
         bounds = tot_bounds if tot_bounds else \
                             [-np.inf, np.inf] * self.d
@@ -120,6 +137,9 @@ class DecisionTree():
         return np.array(patches)
         
     def collect_partitions(self, node, bounds, patches):
+        '''
+        This is the recursive helper that implements the get_partitions function
+        '''
         #node.nPrint()
         if node.kids is None:
             patches.append(bounds + [node.value,])
@@ -131,6 +151,10 @@ class DecisionTree():
         self.collect_partitions(node.kids[1], bounds_r, patches)
     
     def quickPlot(self, X, Y, axis=None):
+        '''
+        Make a quick plot of the X, Y data, along with the 
+        regions partitioned by the tree
+        '''
         if X.shape[1] != 2:
             raise ValueError('plotting requires 2d input')
         
@@ -157,6 +181,7 @@ class DecisionTree():
         
     # Converting to other data formats 
     def add_to_dict(self, node, d):
+        '''Recursive helper for as_dict'''
         d[node.id] = [node.value, node.feature, node.thresh] + \
                      ([-1, -1] if (not node.kids) else [c.id for c in node.kids])
         if node.kids:
@@ -164,11 +189,17 @@ class DecisionTree():
             self.add_to_dict(node.kids[1], d)
         
     def as_dict(self):
+        '''
+        Get the tree as a dictionary mapping node id to 
+        [value, feature, threshold, left child id, right child id].
+        Observe for leafs, the left / right child ids are -1
+        '''
         d = {}
         self.add_to_dict(self.root, d)
         return d
         
     def to_networkx(self):
+        '''Get the tree as a networkx diGraph'''
         d = self.as_dict()
         g = nx.DiGraph({key:val[-2:] for key, val in d.items() if val[-1] != -1})
         nx.set_node_attributes(g, {key:val[0] for key, val in d.items()}, 'value')
