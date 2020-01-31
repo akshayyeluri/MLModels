@@ -1,13 +1,15 @@
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import networkx as nx
 #from MLModels import utils as u
 
 class DecisionTree(): 
     class Node():
-        def __init__(self, value, depth):
+        def __init__(self, value, depth, iD):
             self.value=value
             self.depth=depth
+            self.id = iD
             self.kids=None
             self.feature=None
             self.thresh=None
@@ -18,19 +20,22 @@ class DecisionTree():
             print()
             
             
-    def __init__(self, maxDepth=None, impur=None, \
+    def __init__(self, impur=None, \
                  decision_func=lambda x: st.mode(x)[0][0]):
         '''
         Initialize a decision tree taking
         x input with d features
-        '''
-                                                                         
-        self.maxDepth = maxDepth                                                        
+        '''                                                       
         self.L = impur if impur else \
                  lambda Y: Y.shape[0] * st.entropy([Y.mean(), 1-Y.mean()])
         self.decision = decision_func
         self.root = None
+        self.totalNodes = 0
         self.d = None # How many features do input points have?
+        # termination parameters
+        self.maxDepth = None                    
+        self.minPoints = None
+        self.maxNodes = None
         
     def tree_print(self, node=None):
         if not node:
@@ -41,7 +46,7 @@ class DecisionTree():
             self.tree_print(node.kids[1])
         
     def split(self, node, X, Y):
-        if node.depth >= self.maxDepth:
+        if (node.depth >= self.maxDepth) or (self.totalNodes >= self.maxNodes - 2) :
             return
         
         # Find best feature to split on and threshold
@@ -52,17 +57,18 @@ class DecisionTree():
             x = X[:, feat]
             inds = np.argsort(x)
             x, y = x[inds], Y[inds]
-            for i, thresh in enumerate((x[:-1]+x[1:])/2):
-                newImp = self.L(y[:(i+1)]) + self.L(y[i+1:])
+            thresholds = (x[:-1]+x[1:])/2
+            start, stop = self.minPoints, len(thresholds) - self.minPoints
+            for i, thresh in enumerate(thresholds[start:stop]):
+                cutoff = start + i + 1
+                newImp = self.L(y[:cutoff]) + self.L(y[cutoff:])
                 #print(feat, thresh, newImp)
                 if newImp < bestImp:
                     bestFeat, bestThresh = feat, thresh
                     bestImp = newImp
         
-        
-        #print(bestFeat, bestThresh, bestImp)
         if bestFeat is None:
-            return # Already perfectly classified
+            return # Already perfectly classified, or other termination condition
         
         # Set node data
         node.feature = bestFeat
@@ -71,18 +77,27 @@ class DecisionTree():
         # make node's kids
         inds = (X[:, bestFeat] < bestThresh)
         X_l, Y_l = X[inds], Y[inds]
-        left_kid = self.Node(self.decision(Y_l), node.depth + 1)
+        left_kid = self.Node(self.decision(Y_l), node.depth + 1, self.totalNodes)
+        self.totalNodes += 1
         X_r, Y_r = X[~inds], Y[~inds]
-        right_kid = self.Node(self.decision(Y_r), node.depth + 1)
+        right_kid = self.Node(self.decision(Y_r), node.depth + 1, self.totalNodes)
         node.kids = [left_kid, right_kid]
+        self.totalNodes += 1
         
         # recurse
         self.split(node.kids[0], X_l, Y_l)
         self.split(node.kids[1], X_r, Y_r) 
                                                                                                                                                       
-    def learn(self, X, Y):                                                        
-        self.root = self.Node(self.decision(Y), 0)
+    def learn(self, X, Y, **conditions):
+        # Get termination conditions
+        self.maxDepth = conditions.get('maxDepth', np.inf)                           
+        self.minPoints = conditions.get('minPoints', 0)
+        self.maxNodes = conditions.get('maxNodes', np.inf)
+        # Set root and number of features
+        self.root = self.Node(self.decision(Y), 0, self.totalNodes)
+        self.totalNodes += 1
         self.d = X.shape[1]
+        # Recursive train
         self.split(self.root, X, Y)
     
     def decide(self, node, X):
@@ -113,8 +128,8 @@ class DecisionTree():
         bounds_r[0 + 2 * node.feature] = node.thresh
         bounds_l[1 + 2 * node.feature] = node.thresh
         self.collect_partitions(node.kids[0], bounds_l, patches)
-        self.collect_partitions(node.kids[1], bounds_r, patches)    
-            
+        self.collect_partitions(node.kids[1], bounds_r, patches)
+    
     def quickPlot(self, X, Y, axis=None):
         if X.shape[1] != 2:
             raise ValueError('plotting requires 2d input')
@@ -139,3 +154,24 @@ class DecisionTree():
                                                                                 
         if axis is None:                                                        
             return fig, ax
+        
+    # Converting to other data formats 
+    def add_to_dict(self, node, d):
+        d[node.id] = [node.value, node.feature, node.thresh] + \
+                     ([-1, -1] if (not node.kids) else [c.id for c in node.kids])
+        if node.kids:
+            self.add_to_dict(node.kids[0], d)
+            self.add_to_dict(node.kids[1], d)
+        
+    def as_dict(self):
+        d = {}
+        self.add_to_dict(self.root, d)
+        return d
+        
+    def to_networkx(self):
+        d = self.as_dict()
+        g = nx.DiGraph({key:val[-2:] for key, val in d.items() if val[-1] != -1})
+        nx.set_node_attributes(g, {key:val[0] for key, val in d.items()}, 'value')
+        nx.set_node_attributes(g, {key:val[1] for key, val in d.items()}, 'feature')
+        nx.set_node_attributes(g, {key:val[2] for key, val in d.items()}, 'threshold')
+        return g
