@@ -1,14 +1,39 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.stats as st
 
 from MLModels import utils as u
 
+losses = {
+    'log': {'E' : lambda t,y: st.entropy([y,1-y], [t, 1-t]) + st.entropy([y,1-y]), # binary cross entropy,
+            'dE_dTheta' : lambda t,y: (1-y)/(1-t) - y/t # deriv of binary cross entropy
+    },
+    'square': {'E' : lambda x,y: (y - x) ** 2,
+               'dE_dTheta' : lambda x,y: -2 * (y - x)
+    }
+}
+
+activations = {
+    'sigmoid': {
+        'theta' : lambda s : 1 / (1 + np.exp(-s)), # sigmoid activation function
+        'dTheta_ds' : lambda s: np.exp(-s) / (1 + np.exp(-s)) ** 2,  # Deriv of sigmoid
+    },
+    'tanh': {
+        'theta' : np.tanh,
+        'dTheta_ds' : lambda x: 1 - (np.tanh(x) ** 2),
+    },
+    'relu': {
+        'theta': lambda s: max(0, s),
+        'dTheta_ds': lambda s: int(s >= 0)
+    }
+}
+
 class NeuralNet():
     
-    def __init__(self, sizes, eta=0.1, theta=np.tanh,\
-                 dTheta_ds=lambda x: 1 - (np.tanh(x) ** 2),\
-                 E=lambda x,y: (y - x) ** 2,\
-                 dE_dTheta=lambda x,y: -2 * (y - x)):
+    def __init__(self, sizes, eta=0.1, \
+                 E=losses['square']['E'], theta=activations['tanh']['theta'],\
+                 dE_dTheta=losses['square']['dE_dTheta'],\
+                 dTheta_ds=activations['tanh']['dTheta_ds']):
         '''
         Initialize a neural net, with the number of layers and size of 
         each layer, as well as various other specifications. 
@@ -66,6 +91,9 @@ class NeuralNet():
         
     def err(self, x, y):
         '''Find the pointwise loss, given a point and correct output'''
+        test = self.E(self.calculate(x), y)
+        #if (np.isnan(test)):
+        #    print(test, 'x=', x, 'y=', y, 'weights=',self.weights)
         return self.E(self.calculate(x), y)
        
         

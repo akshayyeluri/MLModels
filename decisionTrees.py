@@ -131,9 +131,9 @@ class DecisionTree():
             ax.fill_between([x_min, x_max], [y_min, y_min], [y_max, y_max],\
                             alpha=0.3, color='b' if v else 'r')
         
-        indsPos, indsNeg = (Y == 1), (Y == 0)                                  
-        ax.plot(X[indsPos, -2], X[indsPos, -1], 'b+')                   
-        ax.plot(X[indsNeg, -2], X[indsNeg, -1], 'r_')
+        inds = (Y == 1)
+        ax.plot(X[inds, -2], X[inds, -1], 'b+')
+        ax.plot(X[~inds, -2], X[~inds, -1], 'r_')
         ax.set_xlabel('X1')
         ax.set_ylabel('X2')
                                                                                 

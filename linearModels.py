@@ -92,9 +92,9 @@ class LinearModel():
                                                                                 
         u.plotLine(*self.weights[1:], self.weights[0], axis=ax,\
                    color=color, label=label)    
-        indsPos, indsNeg = (Y == 1), (Y == -1)                                  
-        ax.scatter(X[indsPos, -2], X[indsPos, -1], color='b')                   
-        ax.scatter(X[indsNeg, -2], X[indsNeg, -1], color='r')
+        inds = (Y == 1)
+        ax.plot(X[inds, -2], X[inds, -1], 'b+')
+        ax.plot(X[~inds, -2], X[~inds, -1], 'r_')
         ax.set_xlabel('X1')
         ax.set_ylabel('X2')
                                                                                 
