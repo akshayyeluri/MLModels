@@ -5,35 +5,49 @@ import scipy.stats as st
 from MLModels import utils as u
 
 losses = {
-    'log': {'E' : lambda t,y: st.entropy([y,1-y], [t, 1-t]) + st.entropy([y,1-y]), # binary cross entropy,
-            'dE_dTheta' : lambda t,y: (1-y)/(1-t) - y/t # deriv of binary cross entropy
+    # Categorical cross entropy,
+    'categorical': {
+        'f' : lambda t,y: st.entropy(y, t) + st.entropy(y), 
+        'df': lambda t,y: -y / t 
     },
-    'square': {'E' : lambda x,y: (y - x) ** 2,
-               'dE_dTheta' : lambda x,y: -2 * (y - x)
+    # Binary cross entropy,
+    'log': {
+        'f' : lambda t,y: st.entropy([y,1-y], [t, 1-t]) + st.entropy([y,1-y]), 
+        'df': lambda t,y: (1-y)/(1-t) - y/t # deriv of binary cross entropy
+    },
+    'square': {
+        'f' : lambda x,y: (y - x) ** 2,
+        'df': lambda x,y: -2 * (y - x)
     }
 }
 
 activations = {
+    'softmax': {
+        'f' : lambda s :  exp(s) / np.sum(exp(s)), # softmax activation function
+        'df': None,  # Deriv of softmax
+    },
     'sigmoid': {
-        'theta' : lambda s : 1 / (1 + np.exp(-s)), # sigmoid activation function
-        'dTheta_ds' : lambda s: np.exp(-s) / (1 + np.exp(-s)) ** 2,  # Deriv of sigmoid
+        'f' : lambda s : 1 / (1 + np.exp(-s)), # sigmoid activation function
+        'df': lambda s: np.exp(-s) / (1 + np.exp(-s)) ** 2,  # Deriv of sigmoid
     },
     'tanh': {
-        'theta' : np.tanh,
-        'dTheta_ds' : lambda x: 1 - (np.tanh(x) ** 2),
+        'f' : np.tanh,
+        'df': lambda s: 1 - (np.tanh(s) ** 2),
     },
     'relu': {
-        'theta': lambda s: max(0, s),
-        'dTheta_ds': lambda s: int(s >= 0)
+        'f' : lambda s: max(0, s),
+        'df': lambda s: int(s >= 0)
+    },
+    'None': {
+        'f' : lambda s: s,
+        'df': lambda s: 1,
     }
 }
 
 class NeuralNet():
     
     def __init__(self, sizes, eta=0.1, \
-                 E=losses['square']['E'], theta=activations['tanh']['theta'],\
-                 dE_dTheta=losses['square']['dE_dTheta'],\
-                 dTheta_ds=activations['tanh']['dTheta_ds']):
+                 loss='square', nonLin='tanh'):
         '''
         Initialize a neural net, with the number of layers and size of 
         each layer, as well as various other specifications. 
@@ -42,31 +56,33 @@ class NeuralNet():
             - sizes: array-like, shape (nLevels + 1,). Gives the size of each 
                   layer of the neural net
             - eta: scalar (float) learning rate, defaults to 0.1
-            - theta: Activating function, applied to the signal at each level to introduce 
-                  nonlinearity into the model
-            - dTheta_ds: function, the derivative of the theta function
-            - E: the pointwise error/loss function, returns the error of the 
-                  final output (x) vs correct output (y)
-            - dE_dTheta: the derivative of E, where theta(final signal) = 
-                  final output (a.k.a the x)
+            - loss: string giving type of loss, available losses are in 
+                  the losses dictionary of this module
+            - nonLin: string or list of strings giving the activation 
+                  functions at each layer. If single string, will use same
+                  activation function at each layer. If list, must be of
+                  length len(sizes) - 1 (one activation for each layer). To
+                  forego an activation function at a specific layer, use
+                  'None'. Available activations are in activations dict of
+                  this module
         '''
-        sizes = np.array(sizes)
-        if sizes[-1] != 1:
-            raise ValueError('Last layer must have size 1')
-        if not np.all([callable(func) for func in \
-                      (theta, dTheta_ds, E, dE_dTheta)]):
-            raise TypeError('Improper function arguments')
-            
-        self.sizes = sizes
-        self.nLevels = sizes.shape[0] - 1
-
+        self.sizes = np.array(sizes)
+        self.nLevels = self.sizes.shape[0] - 1
         self.weights = [np.random.randn(sizes[l], sizes[l + 1]).squeeze()\
                         * np.sqrt(1 / sizes[l]) for l in range(self.nLevels)]
         self.eta = eta
-        self.theta = theta
-        self.dTheta_ds = dTheta_ds
-        self.E = E
-        self.dE_dTheta = dE_dTheta
+
+        if isinstance(nonLin, str):
+            nonLin = [nonLin] * self.nLevels
+        if len(nonLin) != self.nLevels:
+            raise ValueError('Number of activation functions and layers mismatch!')
+        if not np.all([(t in activations) for t in nonLin]):
+            raise ValueError('Unimplemented or unknown nonlinearity!')
+
+        self.thetas = [activations[t]['f'] for t in nonLin]
+        self.dThetas = [activations[t]['df'] for t in nonLin]
+        self.E = losses[loss]['f']
+        self.dE = losses[loss]['df']
         
         
     def calculate(self, x):
@@ -82,7 +98,7 @@ class NeuralNet():
         X, S = [x], []
         for l in range(self.nLevels):
             S.append(np.dot(X[-1], self.weights[l]))
-            X.append(self.theta(S[-1]))
+            X.append(self.thetas[l](S[-1]))
         
         self.X = X
         self.S = S
@@ -91,9 +107,6 @@ class NeuralNet():
         
     def err(self, x, y):
         '''Find the pointwise loss, given a point and correct output'''
-        test = self.E(self.calculate(x), y)
-        #if (np.isnan(test)):
-        #    print(test, 'x=', x, 'y=', y, 'weights=',self.weights)
         return self.E(self.calculate(x), y)
        
         
@@ -112,10 +125,16 @@ class NeuralNet():
         '''
         self.calculate(x)
         deltas = [np.empty_like(self.S[l]) for l in range(self.nLevels)]
-        deltas[-1] = self.dE_dTheta(self.X[-1], y) *\
-                     self.dTheta_ds(self.S[-1])
+
+        # We allow for an activation function using all signals coming into
+        # a layer (e.g. softmax) only in the last layer. Thus, for this
+        # we need a jacobian J where J_{ij} = dOutput_i / dSignal_j 
+        nonLin_grad = np.atleast_1d(self.dThetas[-1](self.S[-1]))
+        jacobian = nonLin_grad if nonLin_grad.ndim == 2 else np.diag(nonLin_grad)
+        deltas[-1] = np.dot(self.dE(self.X[-1], y), jacobian).squeeze()
+                     
         for l in reversed(range(1, self.nLevels)):
-            deltas[l - 1] = self.dTheta_ds(self.S[l - 1]) *\
+            deltas[l - 1] = self.dThetas[l - 1](self.S[l - 1]) *\
                             np.dot(self.weights[l], deltas[l])
         for l in range(self.nLevels):
             dw = np.outer(self.X[l], deltas[l]).squeeze()

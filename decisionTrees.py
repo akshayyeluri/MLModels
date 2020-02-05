@@ -72,7 +72,7 @@ class DecisionTree():
                 cutoff = start + i + 1
                 newImp = self.L(y[:cutoff]) + self.L(y[cutoff:])
                 if newImp <= bestImp:
-                    if bestFeat is not None: # handle issue where points are same on dim
+                    if bestFeat is not None: # handle issue where points are same value on dim
                         if np.var(X[:, bestFeat]) > np.var(X[:, feat]):
                             continue
                     bestFeat, bestThresh = feat, thresh
