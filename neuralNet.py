@@ -21,10 +21,12 @@ losses = {
     }
 }
 
+
 activations = {
     'softmax': {
-        'f' : lambda s :  exp(s) / np.sum(exp(s)), # softmax activation function
-        'df': None,  # Deriv of softmax
+        'f' : lambda s :  np.exp(s) / np.exp(s).sum(), # softmax activation function
+        'df': lambda s :  np.diag(np.exp(s)/np.exp(s).sum()) - \
+                          np.outer(np.exp(s), np.exp(s)) / (np.exp(s).sum() ** 2)
     },
     'sigmoid': {
         'f' : lambda s : 1 / (1 + np.exp(-s)), # sigmoid activation function
