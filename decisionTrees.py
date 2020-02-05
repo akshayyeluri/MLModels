@@ -28,7 +28,7 @@ class DecisionTree():
         x input with d features
         '''                                                       
         self.L = impur if impur else \
-                 lambda Y: Y.shape[0] * st.entropy([Y.mean(), 1-Y.mean()])
+                  lambda Y: Y.shape[0] * st.entropy([Y.mean(), 1-Y.mean()])
         self.decision = decision_func
         self.root = None
         self.totalNodes = 0
@@ -59,17 +59,22 @@ class DecisionTree():
         # to split on
         bestFeat, bestThresh = None, None
         bestImp = self.L(Y)
+        if bestImp == 0.0: # terminate if perfect
+            return
+        
         for feat in range(self.d):
             x = X[:, feat]
             inds = np.argsort(x)
             x, y = x[inds], Y[inds]
             thresholds = (x[:-1]+x[1:])/2
-            start, stop = self.minPoints, len(thresholds) - self.minPoints
+            start, stop = self.minPoints - 1, len(x) - self.minPoints
             for i, thresh in enumerate(thresholds[start:stop]):
                 cutoff = start + i + 1
                 newImp = self.L(y[:cutoff]) + self.L(y[cutoff:])
-                #print(feat, thresh, newImp)
-                if newImp < bestImp:
+                if newImp <= bestImp:
+                    if bestFeat is not None: # handle issue where points are same on dim
+                        if np.var(X[:, bestFeat]) > np.var(X[:, feat]):
+                            continue
                     bestFeat, bestThresh = feat, thresh
                     bestImp = newImp
         
@@ -100,7 +105,7 @@ class DecisionTree():
         '''
         # Get termination conditions
         self.maxDepth = conditions.get('maxDepth', np.inf)                           
-        self.minPoints = conditions.get('minPoints', 0)
+        self.minPoints = conditions.get('minPoints', 1)
         self.maxNodes = conditions.get('maxNodes', np.inf)
         # Set root and number of features
         self.root = self.Node(self.decision(Y), 0, self.totalNodes)
