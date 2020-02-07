@@ -13,6 +13,9 @@ def onehot(data, n_class = None):
     data = (np.arange(n_class) == data[:, None]).astype(np.float32)
     return data
 
+def un_onehot(data):
+    return np.argmax(data, axis=1)
+
 def genPoints(nPoints=1):
     ''' Generate points in interval [-1, 1] x [-1, 1]'''
     return np.random.rand(nPoints, 2) * 2 - 1

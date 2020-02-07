@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 
+import warnings
+warnings.filterwarnings('error')
+
 from MLModels import utils as u
 
 losses = {
@@ -30,7 +33,8 @@ activations = {
     },
     'sigmoid': {
         'f' : lambda s : 1 / (1 + np.exp(-s)), # sigmoid activation function
-        'df': lambda s: np.exp(-s) / (1 + np.exp(-s)) ** 2,  # Deriv of sigmoid
+        #'df': lambda s: np.exp(-s) / (1 + np.exp(-s)) ** 2,  # Deriv of sigmoid
+        'df': lambda s: 1 / (1 + np.exp(s)) * 1 / (1 + np.exp(-s)),  
     },
     'tanh': {
         'f' : np.tanh,
@@ -46,12 +50,33 @@ activations = {
     }
 }
 
+
+def add_print(f):
+    def g(s):
+        #if np.mean(s) > 1e2 or np.any(s) < 1e-3:
+        try:
+            o = f(s)
+        except Warning as w:
+            print(f.__name__, s)
+        return f(s)
+    return g
+for act, funcs in activations.items():
+    try:
+        funcs['f'].__name__ = act
+        funcs['df'].__name__ = 'd_' + act
+    except AttributeError as e:
+        pass
+activations['softmax']['f'] = add_print(activations['softmax']['f'])
+activations['softmax']['df'] = add_print(activations['softmax']['df'])
+activations['sigmoid']['f'] = add_print(activations['sigmoid']['f'])
+activations['sigmoid']['df'] = add_print(activations['sigmoid']['df'])
+
 def nWeights(model):
     return sum([np.prod(l.shape) for l in model.weights])
 
 class NeuralNet():
     
-    def __init__(self, sizes, eta=0.1, \
+    def __init__(self, sizes, eta=0.1, sf = 1.0,\
                  loss='square', nonLin='tanh'):
         '''
         Initialize a neural net, with the number of layers and size of 
@@ -73,8 +98,9 @@ class NeuralNet():
         '''
         self.sizes = np.array(sizes)
         self.nLevels = self.sizes.shape[0] - 1
-        self.weights = [np.random.randn(sizes[l], sizes[l + 1]).squeeze()\
+        self.weights = [sf * np.random.randn(sizes[l], sizes[l + 1]).squeeze()\
                         * np.sqrt(1 / sizes[l]) for l in range(self.nLevels)]
+                        #for l in range(self.nLevels)]
         self.eta = eta
 
         if isinstance(nonLin, str):
@@ -113,8 +139,11 @@ class NeuralNet():
     def err(self, x, y):
         '''Find the pointwise loss, given a point and correct output'''
         return self.E(self.calculate(x), y)
-       
-        
+
+    def predict(self, X):
+        return np.array([self.calculate(X[i])\
+                        for i in range(X.shape[0])])
+
     def findE_in(self, X, Y):
         '''Find the total loss (the in sample error) 
         given training data with correct outputs'''
@@ -164,7 +193,7 @@ class NeuralNet():
 
     
     
-    def learn(self, X, Y, trackE_in=False, **conditions):
+    def learn(self, X, Y, trackE_in=False, print_stuff=False, **conditions):
         '''
         Given training data, will learn from it. Will iteratively use the 
         backpropagation algorithm to update the weights, going through all 
@@ -207,8 +236,12 @@ class NeuralNet():
             if trackE_in:
                 E_ins.append(self.findE_in(X, Y))
                 E_in = E_ins[-1]
+                if print_stuff:
+                    print(f'Epoch {it}: training loss = {E_in}')
             else:
                 E_in = None
+
+
                 
             # Check if to terminate
             if self.isDone(it, w_old, E_in,\
