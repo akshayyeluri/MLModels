@@ -37,14 +37,17 @@ activations = {
         'df': lambda s: 1 - (np.tanh(s) ** 2),
     },
     'relu': {
-        'f' : lambda s: max(0, s),
-        'df': lambda s: int(s >= 0)
+        'f' : lambda s: np.maximum(0, s),
+        'df': lambda s: (s >= 0).astype(int)
     },
     'None': {
         'f' : lambda s: s,
         'df': lambda s: 1,
     }
 }
+
+def nWeights(model):
+    return sum([np.prod(l.shape) for l in model.weights])
 
 class NeuralNet():
     

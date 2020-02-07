@@ -5,6 +5,14 @@ Utilities for learning models
 import numpy as np
 import matplotlib.pyplot as plt
 
+def onehot(data, n_class = None):
+    '''Process labels, make one-hot, fix 1-indexing, etc.'''
+    n_class = len(np.unique(data)) if n_class is None else n_class
+    data = np.round(((data-data.min()) / (np.ptp(data)) * (n_class-1)).squeeze())
+    # One hot the data
+    data = (np.arange(n_class) == data[:, None]).astype(np.float32)
+    return data
+
 def genPoints(nPoints=1):
     ''' Generate points in interval [-1, 1] x [-1, 1]'''
     return np.random.rand(nPoints, 2) * 2 - 1
