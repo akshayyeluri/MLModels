@@ -16,6 +16,59 @@ def onehot(data, n_class = None):
 def un_onehot(data):
     return np.argmax(data, axis=1)
 
+def confusions(predictions, labels):
+    """Return the confusions matrix"""
+    confusions = np.zeros([predictions.shape[1]] * 2, np.float32)
+    bundled = zip(np.argmax(predictions, 1), np.argmax(labels, 1))
+
+    for predicted, actual in bundled:
+        confusions[predicted, actual] += 1
+    return confusions
+
+def error_rate(predictions, labels):
+    """Return the error rate (fraction of samples misclassified)"""
+    correct = np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
+    total = predictions.shape[0]
+    return (1  - float(correct) / float(total))
+
+def perf_metric(predictions, labels, metric='precision'):
+    """
+    A generic function to return a performance metric given the
+    predictions and labels.
+    Supported metrics:
+        - accuracy
+        - error
+        - precision (per class)
+        - recall (per class)
+    """
+    conf = confusions(predictions, labels)
+    if metric == 'precision':
+        return np.diag(conf) / np.sum(conf, axis=1)
+    elif metric == 'recall':
+        return np.diag(conf) / np.sum(conf, axis=0)
+    elif metric == 'accuracy':
+        return np.sum(np.diag(conf)) / np.sum(conf)
+    elif metric == 'error':
+        return 1 - (np.sum(np.diag(conf)) / np.sum(conf))
+
+def plot_confusions(grid, ax = None):
+    """ Utility to neatly plot confusions matrix. """
+    ax = plt.subplot(111) if ax is None else ax
+    ax.set_xlabel('Actual')
+    ax.set_ylabel('Predicted')
+    ax.grid(False)
+    ax.set_xticks(np.arange(grid.shape[0]))
+    ax.set_yticks(np.arange(grid.shape[0]))
+    ax.imshow(grid, interpolation='nearest');
+
+    for i, cas in enumerate(grid):
+        for j, count in enumerate(cas):
+            if count > 0:
+                xoff = .07 * len(str(count))
+                plt.text(j-xoff, i+.2, int(count), fontsize=9, color='white')
+
+    return ax
+
 def genPoints(nPoints=1):
     ''' Generate points in interval [-1, 1] x [-1, 1]'''
     return np.random.rand(nPoints, 2) * 2 - 1
