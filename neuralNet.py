@@ -2,9 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 
-import warnings
-warnings.filterwarnings('error')
-
 from MLModels import utils as u
 
 losses = {
@@ -51,32 +48,9 @@ activations = {
 }
 
 
-def add_print(f):
-    def g(s):
-        #if np.mean(s) > 1e2 or np.any(s) < 1e-3:
-        try:
-            o = f(s)
-        except Warning as w:
-            print(f.__name__, s)
-        return f(s)
-    return g
-for act, funcs in activations.items():
-    try:
-        funcs['f'].__name__ = act
-        funcs['df'].__name__ = 'd_' + act
-    except AttributeError as e:
-        pass
-activations['softmax']['f'] = add_print(activations['softmax']['f'])
-activations['softmax']['df'] = add_print(activations['softmax']['df'])
-activations['sigmoid']['f'] = add_print(activations['sigmoid']['f'])
-activations['sigmoid']['df'] = add_print(activations['sigmoid']['df'])
-
-def nWeights(model):
-    return sum([np.prod(l.shape) for l in model.weights])
-
 class NeuralNet():
     
-    def __init__(self, sizes, eta=0.1, sf = 1.0,\
+    def __init__(self, sizes, eta=0.1, w_init=None,\
                  loss='square', nonLin='tanh'):
         '''
         Initialize a neural net, with the number of layers and size of 
@@ -96,51 +70,73 @@ class NeuralNet():
                   'None'. Available activations are in activations dict of
                   this module
         '''
-        self.sizes = np.array(sizes)
-        self.nLevels = self.sizes.shape[0] - 1
-        self.weights = [sf * np.random.randn(sizes[l], sizes[l + 1]).squeeze()\
-                        * np.sqrt(1 / sizes[l]) for l in range(self.nLevels)]
-                        #for l in range(self.nLevels)]
-        self.eta = eta
+        self._sizes = np.array(sizes)
+        self._nLevels = self._sizes.shape[0] - 1
 
+        self._eta = eta
+
+        # He et. al suggested initializer by default
+        if w_init is None:
+            initializer = \
+             lambda l,l_p1: np.random.randn(l, l_p1).squeeze() * np.sqrt(2/l)
+        if isinstance(w_init, (int, float)):
+            initializer = \
+             lambda l,l_p1: w_init * np.random.randn(l, l_p1).squeeze() * np.sqrt(2/l)
+        elif callable(w_init):
+            initializer = w_init 
+        self._weights = [initializer(sizes[l], sizes[l+1]) for l in range(self._nLevels)]
+
+        # Handle retrieving activations / derivatives of activations
         if isinstance(nonLin, str):
-            nonLin = [nonLin] * self.nLevels
-        if len(nonLin) != self.nLevels:
+            nonLin = [nonLin] * self._nLevels
+        if len(nonLin) != self._nLevels:
             raise ValueError('Number of activation functions and layers mismatch!')
         if not np.all([(t in activations) for t in nonLin]):
             raise ValueError('Unimplemented or unknown nonlinearity!')
+        self._thetas = [activations[t]['f'] for t in nonLin]
+        self._dThetas = [activations[t]['df'] for t in nonLin]
+        self._L = losses[loss]['f']
+        self._dL = losses[loss]['df']
+        
+    @property
+    def nWeights(self):
+        if not hasattr(self, '_nWeights'):
+            self._nWeights = sum([np.prod(l.shape) for l in self._weights])
+        return self._nWeights
 
-        self.thetas = [activations[t]['f'] for t in nonLin]
-        self.dThetas = [activations[t]['df'] for t in nonLin]
-        self.E = losses[loss]['f']
-        self.dE = losses[loss]['df']
         
-        
-    def calculate(self, x):
+    def calculate(self, x, train=False):
         '''
         Will calculate the final output of the neural net given initial x
         (will also save all signals and outputs in the hidden layers), for use
         in endeavors like the backpropagation algorithm.
         '''
-        if self.sizes[0] != 1 and x.shape[0] != self.sizes[0]:
+        if self._sizes[0] != 1 and x.shape[0] != self._sizes[0]:
             raise ValueError('Input vector should be of length {}.'.format\
-                             (len(x), self.sizes[0]))
-        
+                             (len(x), self._sizes[0]))
+
+        currX, currS = x, 0
         X, S = [x], []
-        for l in range(self.nLevels):
-            S.append(np.dot(X[-1], self.weights[l]))
-            X.append(self.thetas[l](S[-1]))
+        for l in range(self._nLevels):
+            currS = np.dot(currX, self._weights[l])
+            currX = self._thetas[l](currS)
+            if train:
+                S.append(currS)
+                X.append(currX)
         
-        self.X = X
-        self.S = S
-        return self.X[-1]
+        if train:
+            self._X = X
+            self._S = S
+        return currX
         
         
     def err(self, x, y):
         '''Find the pointwise loss, given a point and correct output'''
-        return self.E(self.calculate(x), y)
+        return self._L(self.calculate(x), y)
 
-    def predict(self, X):
+    def __call__(self, X):
+        if X.ndim == 1 and self._sizes[0] > 1:
+            return self.calculate(X)
         return np.array([self.calculate(X[i])\
                         for i in range(X.shape[0])])
 
@@ -157,22 +153,22 @@ class NeuralNet():
         algorithm to calculate the partial derivatives with respect to each 
         weight, and will update all the weights
         '''
-        self.calculate(x)
-        deltas = [np.empty_like(self.S[l]) for l in range(self.nLevels)]
+        self.calculate(x, train=True)
+        deltas = [np.empty_like(self._S[l]) for l in range(self._nLevels)]
 
         # We allow for an activation function using all signals coming into
         # a layer (e.g. softmax) only in the last layer. Thus, for this
         # we need a jacobian J where J_{ij} = dOutput_i / dSignal_j 
-        nonLin_grad = np.atleast_1d(self.dThetas[-1](self.S[-1]))
+        nonLin_grad = np.atleast_1d(self._dThetas[-1](self._S[-1]))
         jacobian = nonLin_grad if nonLin_grad.ndim == 2 else np.diag(nonLin_grad)
-        deltas[-1] = np.dot(self.dE(self.X[-1], y), jacobian).squeeze()
+        deltas[-1] = np.dot(self._dL(self._X[-1], y), jacobian).squeeze()
                      
-        for l in reversed(range(1, self.nLevels)):
-            deltas[l - 1] = self.dThetas[l - 1](self.S[l - 1]) *\
-                            np.dot(self.weights[l], deltas[l])
-        for l in range(self.nLevels):
-            dw = np.outer(self.X[l], deltas[l]).squeeze()
-            self.weights[l] -= self.eta * dw
+        for l in reversed(range(1, self._nLevels)):
+            deltas[l - 1] = self._dThetas[l - 1](self._S[l - 1]) *\
+                            np.dot(self._weights[l], deltas[l])
+        for l in range(self._nLevels):
+            dw = np.outer(self._X[l], deltas[l]).squeeze()
+            self._weights[l] -= self._eta * dw
 
 
     def isDone(self, it, w_old, E_in, maxIters=None, wDiffBound=None,\
@@ -181,8 +177,8 @@ class NeuralNet():
         if maxIters is not None and it >= maxIters:
             return True
         
-        wDiff = np.sum([np.linalg.norm(self.weights[l] - w_old[l])\
-                        for l in range(self.nLevels)])
+        wDiff = np.sum([np.linalg.norm(self._weights[l] - w_old[l])\
+                        for l in range(self._nLevels)])
         if wDiffBound is not None and wDiff <= wDiffBound:
             return True
         
@@ -193,7 +189,7 @@ class NeuralNet():
 
     
     
-    def learn(self, X, Y, trackE_in=False, print_stuff=False, **conditions):
+    def fit(self, X, Y, trackE_in=False, print_stuff=False, **conditions):
         '''
         Given training data, will learn from it. Will iteratively use the 
         backpropagation algorithm to update the weights, going through all 
@@ -210,7 +206,7 @@ class NeuralNet():
         
         # Define variables pertaining to termination
         it = 0
-        w_old = self.weights.copy()
+        w_old = self._weights.copy()
         E_ins = []
         if trackE_in:
             E_ins.append(self.findE_in(X, Y))
@@ -224,7 +220,7 @@ class NeuralNet():
             return it, np.array(E_ins)
 
         while True:
-            w_old = [layer.copy() for layer in self.weights]
+            w_old = [layer.copy() for layer in self._weights]
 
             np.random.shuffle(inds)
             for i in inds:
@@ -248,22 +244,7 @@ class NeuralNet():
                            maxIters, wDiffBound, errBound):
                 return it, np.array(E_ins)
         
-        
-    def quickPlot(self, X, Y, color='g', label='Net Outputs', axis=None):
-        '''
-        For 1 parameter inputs only (scalar inputs), will
-        graph neural net performance on data set vs correct outputs'''
-        if axis is None:
-            fig, ax = plt.subplots(1, 1)
-        else:
-            ax = axis
-            
-        ax.plot(X, [self.calculate(i) for i in X],\
-                color=color, label=label)
-        ax.plot(X, Y, color='k', label='Real Outputs')
-        ax.set_xlabel('input')
-        ax.set_ylabel('output')
-        ax.legend()
-        
-        if axis is None:
-            return fig, ax
+    def boundary2D(self):
+        if self._nLevels > 1 or self._sizes[0] > 3: 
+            raise ValueError('Not a 2D model!')
+        return list(self._weights[0][1:]) + [self._weights[0][0]]

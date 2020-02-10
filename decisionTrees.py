@@ -2,8 +2,6 @@ import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
 import networkx as nx
-#from MLModels import utils as u
-# This is the larger MLModels library I'm making
 
 class DecisionTree():
     class Node():
@@ -99,7 +97,7 @@ class DecisionTree():
         self.split(node.kids[0], X_l, Y_l)
         self.split(node.kids[1], X_r, Y_r) 
                                                                                                                                                       
-    def learn(self, X, Y, **conditions):
+    def fit(self, X, Y, **conditions):
         '''
         Train a tree given termination conditions
         '''
@@ -124,7 +122,7 @@ class DecisionTree():
         Y[~inds] = self.decide(node.kids[1], X[~inds])
         return Y
     
-    def calculate(self, X):
+    def __call__(self, X):
         '''Evaluate the tree on inputs X'''
         return self.decide(self.root, X)
     

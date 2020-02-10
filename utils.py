@@ -132,7 +132,6 @@ def plotLine(a, b, c, label='', axis=None, nPoints=3, color='k'):
     if axis is None:
         return fig, ax
 
-
 def plotE_ins(E_ins, axis=None):
     '''Plots E_in progression over iterations'''
     if axis is None:
@@ -146,3 +145,29 @@ def plotE_ins(E_ins, axis=None):
 
     if axis is None:
         return fig, ax
+
+def quickScatter(X, Y, axis=None):                            
+    '''                                                                     
+    For two dimensional input data and corresponding outputs,               
+    this will plot all the points in the data, useful for quick visualization                             
+    '''                                                                     
+    if X.shape[1] not in (2, 3):                                            
+        raise ValueError('plotting requires 2D input data')                 
+
+    if axis is None:                                                        
+        fig, ax = plt.subplots(1, 1)                                        
+    else:                                                                   
+        ax = axis                                                           
+                                                                            
+    inds = (Y == 1)
+    ax.plot(X[inds, -2], X[inds, -1], 'b+')
+    ax.plot(X[~inds, -2], X[~inds, -1], 'r_')
+    ax.set_xlabel('X1')
+    ax.set_ylabel('X2')
+    ax.set_xlim([X[:, -2].min(), X[:, -2].max()])
+    ax.set_xlim([X[:, -1].min(), X[:, -1].max()])
+    ax.legend()
+                                                                            
+    if axis is None:                                                        
+        return fig, ax
+

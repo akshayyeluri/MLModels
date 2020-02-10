@@ -14,13 +14,13 @@ class LinearModel():
         '''                                                                     
         Initialize the weights and number of parameters for a linear model                    
         '''                                                                     
-        self.size = d                                                           
+        self._size = d                                                           
         if weights is None:                                                     
-            self.weights = np.zeros(d).astype(float)                            
+            self._weights = np.zeros(d).astype(float)                            
         else:                                                                   
             if len(weights) != d:                                               
                 raise ValueError("Initial weight vector of wrong length")       
-            self.weights = np.array(weights).astype(float)                                                             
+            self._weights = np.array(weights).astype(float)                                                             
 
 
     def signal(self, x):                                                        
@@ -28,10 +28,10 @@ class LinearModel():
         Calculate the signal of a linear model. Vectorized, can calculate       
         a vector of signals for an input matrix.                                
         ''' 
-        return np.dot(x, self.weights)                                          
+        return np.dot(x, self._weights)                                          
                                                                                 
                                                                                 
-    def calculate(self, x):                                                     
+    def __call__(self, x):                                                     
         '''Calculate the hypothesis value for x'''       
         return self.signal(x)                                                 
                                                                                 
@@ -41,7 +41,7 @@ class LinearModel():
         Find the pointwise loss function, given point and correct output.       
         Vectorized, can calculate a vector of N errors for N inputs and outputs.
         '''
-        return (self.calculate(x) - y) ** 2                                     
+        return (self(x) - y) ** 2                                     
                                                                                 
                                                                                 
     def findE_in(self, X, Y):                                                   
@@ -52,20 +52,25 @@ class LinearModel():
         return np.mean(self.err(X, Y))                                          
                                                                                 
                                                                                 
-    def learn(self, X, Y, **conditions):                                                      
+    def fit(self, X, Y, **conditions):                                                      
         '''One step learning using linear regression'''                         
         X_dagger = np.dot(np.linalg.inv(np.dot(X.T, X)), X.T)                   
-        self.weights = np.dot(X_dagger, Y)
+        self._weights = np.dot(X_dagger, Y)
         return 0, np.array([]) # Return nothing to be consistent
         
         
+    def boundary2D(self):
+        if self._size > 3:
+            raise ValueError('Not a 2D model!')
+        return list(self._weights[1:]) + [self._weights[0]]
+
     def isDone(self, it, w_old, E_in, maxIters=None, wDiffBound=None,\
                                                      errBound=None):
         '''Check many termination conditions to decide if learning is done.'''
         if maxIters is not None and it >= maxIters:
             return True
         
-        wDiff = np.linalg.norm(self.weights - w_old)
+        wDiff = np.linalg.norm(self._weights - w_old)
         if wDiffBound is not None and wDiff <= wDiffBound:
             return True
         
@@ -75,40 +80,12 @@ class LinearModel():
         return False
         
                                                                   
-    def quickPlot(self, X, Y, color='g', label='Hypothesis', axis=None):                            
-        '''                                                                     
-        For two dimensional input data and corresponding outputs,               
-        this will plot the line defined by the weight vector, as well           
-        as all the points in the data, to see if the line does separate them    
-        as intended                                                             
-        '''                                                                     
-        if X.shape[1] not in (2, 3):                                            
-            raise ValueError('plotting requires 2D input data')                 
-                                                                                
-        if axis is None:                                                        
-            fig, ax = plt.subplots(1, 1)                                        
-        else:                                                                   
-            ax = axis                                                           
-                                                                                
-        u.plotLine(*self.weights[1:], self.weights[0], axis=ax,\
-                   color=color, label=label)    
-        inds = (Y == 1)
-        ax.plot(X[inds, -2], X[inds, -1], 'b+')
-        ax.plot(X[~inds, -2], X[~inds, -1], 'r_')
-        ax.set_xlabel('X1')
-        ax.set_ylabel('X2')
-                                                                                
-        if axis is None:                                                        
-            return fig, ax
-
-
-
 class Perceptron(LinearModel):                                                  
     '''                                                                         
     The Perceptron Model (a binary classifier), uses PLA as the learning        
     algorithm, and binary error as the loss function.                                                                  
     '''
-    def calculate(self, x):                                                     
+    def __call__(self, x):                                                     
         '''Calculate the hypothesis value for x (sign of the signal)'''         
         s = self.signal(x)
         return np.sign(s)
@@ -116,7 +93,7 @@ class Perceptron(LinearModel):
 
     def err(self, x, y):                                                        
         '''Binary error'''
-        return self.calculate(x) != y 
+        return self(x) != y 
 
 
     def findE_in(self, X, Y):                                                   
@@ -125,11 +102,11 @@ class Perceptron(LinearModel):
         which points in the input are misclassified.                            
         '''                                                                     
         errs = self.err(X, Y)
-        self.badInds = np.where(errs)[0]                                        
+        self._badInds = np.where(errs)[0]                                        
         return np.mean(errs)                                                    
                                                                                 
                                                                                 
-    def learn(self, X, Y, **conditions):                       
+    def fit(self, X, Y, **conditions):                       
         '''                                                                     
         Given training data, will learn from it. Will iteratively use the       
         PLA algorithm to update the weights. Set trackE_in to true to calculate 
@@ -144,7 +121,7 @@ class Perceptron(LinearModel):
         
         # Define variables pertaining to termination
         it = 0
-        w_old = self.weights.copy()                                         
+        w_old = self._weights.copy()                                         
         E_ins = [self.findE_in(X, Y)]
         
         # Initial check for termination
@@ -152,10 +129,10 @@ class Perceptron(LinearModel):
             return it, np.array(E_ins)
         
         while True:
-            w_old = self.weights.copy()
+            w_old = self._weights.copy()
             
-            ind = np.random.choice(self.badInds)
-            self.weights += Y[ind] * X[ind]
+            ind = np.random.choice(self._badInds)
+            self._weights += Y[ind] * X[ind]
             
             # Update termination relevant variables
             it += 1                                         
@@ -178,7 +155,7 @@ class LogisticRegression(LinearModel):
         return np.exp(x) / (1 + np.exp(x))
                                                                                 
 
-    def calculate(self, x):                                                     
+    def __call__(self, x):                                                     
         '''Calculate the hypothesis value for x (theta of the signal)'''        
         s = self.signal(x)                                                      
         return self.theta(s)
@@ -189,7 +166,7 @@ class LogisticRegression(LinearModel):
         return np.log(1 + np.exp(-y * self.signal(x)))
 
 
-    def learn(self, X, Y, eta=0.1, useBatch=False, **conditions):       
+    def fit(self, X, Y, eta=0.1, useBatch=False, **conditions):       
         '''                                                                     
         Given training data, will learn from it. Will use either stochastic     
         or batch gradient descent to update the weights.                        
@@ -206,7 +183,7 @@ class LogisticRegression(LinearModel):
         
         # Define variables pertaining to termination
         it = 0
-        w_old = self.weights.copy()
+        w_old = self._weights.copy()
         E_ins = [self.findE_in(X, Y)]
         
         inds = np.arange(X.shape[0])
@@ -216,19 +193,19 @@ class LogisticRegression(LinearModel):
             return it, np.array(E_ins)
                                                            
         while True: 
-            w_old = self.weights.copy()
+            w_old = self._weights.copy()
             
             if useBatch:                                                        
                 s = -Y * self.signal(X)                                         
                 grad = np.dot((-Y * self.theta(s)), X)                          
-                self.weights -= eta * grad                                 
+                self._weights -= eta * grad                                 
             else:                                                               
                 np.random.shuffle(inds)                                         
                 for i in inds:                                                  
                     x, y = X[i], Y[i]                                           
                     s = - y * self.signal(x)                                    
                     grad = -y * self.theta(s) * x                                    
-                    self.weights -= eta * grad
+                    self._weights -= eta * grad
             
             # Update termination relevant variables
             it += 1
