@@ -60,6 +60,48 @@ print(f'Accuracy: {1 - u.error_rate(preds, tY)}')
 
 ![png](assets/confusions_mnist.png)
 
+## Decision Trees with visualization
+
+```python
+import numpy as np 
+np.random.seed(0) # 0 ok
+import matplotlib.pyplot as plt 
+import networkx as nx
+from networkx.drawing.nx_agraph import graphviz_layout as tree_layout
+
+import utils as u
+from decisionTrees import DecisionTree
+```
+
+```python
+f = lambda x: (np.floor(1 * x[0]) + np.floor(2 * x[1])) % 2
+X, Y = u.genData(f, 1000, appendOnes=False)
+d = DecisionTree()
+d.fit(X, Y, maxNodes=50)
+
+ax = plt.subplot(111)
+ax.set_xlim(-1, 1)
+ax.set_ylim(-1, 1)
+d.quickPlot(X, Y, axis=ax)
+# Visualize the decision boundaries
+```
+
+
+![png](assets/d_tree_boundary.png)
+
+
+
+```python
+g = d.to_networkx()
+pos=tree_layout(g, prog='dot')
+colors = ['b' if n['value'] == 1 else 'r' for _, n in g.nodes(data=True)]
+nx.draw(g, pos, with_labels=True, arrows=False, node_color=colors)
+# Visualize the tree
+```
+
+
+![png](assets/d_tree.png)
+
 
 # Files
 
