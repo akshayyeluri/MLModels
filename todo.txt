@@ -1,0 +1,9 @@
+Radial basis functions
+Boosting / bagging for decision trees
+Losses and optimizers as a separate class for neural nets
+convolution and recurrence?
+Validation / CV / grid search pipelines
+Regularization for everything
+HMM incorporation
+Naive Bayes incorporation
+Collaborative filtering
