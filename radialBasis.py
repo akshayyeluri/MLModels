@@ -21,7 +21,6 @@ def rbf_transform(X, reps, gamma=1):
         raise ValueError('Dimension mismatch for X/reps')
         
     sq_norms = (X[:, np.newaxis, :] - reps[np.newaxis, :, :]) ** 2
-    print(sq_norms.shape)
     ans = - gamma * np.sum(sq_norms, axis=2)      
     return np.exp(ans)
         
@@ -37,28 +36,22 @@ class RBF(LinearClassifier):
                  representatives (number of gaussians)
         _weights -- weight vector including w_0, aka bias
         X -- representatives / centers for gaussians
-        input_d -- dimensionality of inputs
         gamma -- precision of gaussians
     '''
-    def __init__(self, input_d, k=5, gamma=1): 
+    def __init__(self, k, gamma=1): 
         super(RBF, self).__init__(k) # sets _size and _weights
         self.gamma = gamma
-        self._input_d = input_d
-        self.rep = np.zeros((k, input_d))
-        
-    def signal(self, x):
-        sigs = rbf_transform(x, self.rep)        
-        return np.dot(self.check_input_dim(sigs), self._weights)
+        self.rep = None
                                                             
+
     def fit(self, X, Y, **conditions):
-        if (X.shape[1] != self._input_d):
-            raise ValueError("Dimension mismatch with input X!")
         self.rep = kmeans(X, self._size, **conditions)[0]
-        sigs = rbf_transform(X, self.rep)
-        return super(RBF, self).fit(sigs, Y, **conditions)
+        self.transform = lambda x: rbf_transform(x, self.rep, self.gamma)
+        return super(RBF, self).fit(X, Y, **conditions)
                                                                            
-    def plot_reps(self, axis=None, c='k', marker='.', alpha=0.3, s=20):
-        if self._input_d != 2:
+
+    def plot_reps(self, axis=None, c='k', marker='o', alpha=1.0, s=50):
+        if (self.rep is None) or self.rep.shape[1] != 2:
             raise ValueError('Model not of dimension 2, cannot plot!')
         ax = axis if axis else plt.subplot(111)
 
@@ -69,17 +62,12 @@ class RBF(LinearClassifier):
         if axis is None:
             return ax
 
-    def boundary2D_plot(self, color='g', label='Hypothesis', axis=None,\
-                        axis_res=200, x1Range=None, x2Range=None):
-        if self._input_d != 2:
-            raise ValueError('Model not of dimension 2, cannot plot!')
-        ax = axis if axis else plt.subplot(111)
 
-        rep = self.reps
+    def boundary2D_plot(self, color='g', label='Hypothesis', axis=None,\
+                        axis_res=200, x1Range=None, x2Range=None, fontsize=15):
+        rep = self.rep
         x1Range = x1Range if x1Range else (rep[:, -2].min(), rep[:, -2].max())
         x2Range = x2Range if x2Range else (rep[:, -1].min(), rep[:, -1].max())
-        u.plotBoundary(self, x1Range, x2Range, axis=ax, color=color,\
-                       axis_res=axis_res, label=label)
-        if axis is None:
-            return ax
-
+        super(RBF, self).boundary2D_plot(color=color, label=label, axis=axis,\
+                                         axis_res=axis_res, x1Range=x1Range,\
+                                         x2Range=x2Range, fontsize=fontsize)

@@ -1,4 +1,3 @@
-Radial basis functions
 Boosting / bagging for decision trees
 Losses and optimizers as a separate class for neural nets
 convolution and recurrence?
@@ -7,3 +6,8 @@ Regularization for everything
 HMM incorporation
 Naive Bayes incorporation
 Collaborative filtering
+TSNE
+Louvain clustering
+PCA?
+tqdm for neural net learning
+

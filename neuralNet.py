@@ -49,6 +49,23 @@ activations = {
     }
 }
 
+def plot_helper(model, X, Y, E_ins, line1,\
+                transform=lambda w: [*w[0][1:], w[0][0]]):
+    '''
+    A little helper function to plot simple R^2 -> R network
+    decision boundaries
+    '''
+    fig, ax = plt.subplots(2, 1, figsize=(8,8))
+    u.plotE_ins(E_ins, axis=ax[0])
+    ax[0].set_title('Loss function convergence')
+    u.plotLine(*line1, axis=ax[1], label='Target')
+    u.plotLine(*transform(model._weights), color='g', \
+                axis=ax[1], label='Hypothesis')
+    u.quickScatter(X, Y, axis=ax[1])
+    ax[1].legend()
+    ax[1].set_title('Network decision boundary')
+    return ax
+
 
 class NeuralNet():
 

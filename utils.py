@@ -87,7 +87,24 @@ def genF(zero_one=False):
     return (lambda x: (f(x) + 1) // 2), line
 
 
-def genData(f, n, appendOnes=True):
+def genCircleF(r=None, zero_one=False):
+    '''
+    Generate a function f: R^2 -> {-1, 1} (or {0,1} if zero_one is True), 
+    that is a binary classifier,
+    where points outside a circle of radius r are mapped to +1, and points
+    inside are mapped to -1. Returns this function, and the circle radius.
+    '''
+    r = r if r else np.random.normal(0.75, 0.1)
+
+    def f(X):
+        X = np.atleast_2d(X)
+        return np.sign(X[:, 0] ** 2 + X[:, 1] ** 2 - r ** 2).squeeze()
+    if not zero_one:
+        return f, r
+    return (lambda x: (f(x) + 1) // 2), r
+
+
+def genData(f, n, appendOnes=False):
     '''
     Given a target function f, generate training data, where 1 is optionally
     appended to the points (to make inputs 3-d), and outputs are what f maps each
@@ -98,6 +115,27 @@ def genData(f, n, appendOnes=True):
     if not appendOnes:
         return points, outputs
     return np.hstack((np.ones(shape=(n, 1)), points)), outputs
+
+def genTransform(k=3):
+    '''
+    Generates a non-linear transform function, where the number
+    of produced features depends on input k
+    '''
+    def transform(X):
+        X = np.atleast_2d(X)
+        X_out = np.empty((X.shape[0], k))
+        try:
+            X_out[:, 0] = X[:, -2]
+            X_out[:, 1] = X[:, -1]
+            X_out[:, 2] = X[:, -2] ** 2
+            X_out[:, 3] = X[:, -1] ** 2
+            X_out[:, 4] = X[:,-2] * X[:, -1]
+            X_out[:, 5] = np.abs(X[:,-2] - X[:, -1])
+            X_out[:, 6] = np.abs(X[:,-2] + X[:, -1])
+        except IndexError as e:
+            pass
+        return X_out
+    return transform
 
 ######################################################
 # Plotting utilities
@@ -127,6 +165,30 @@ def plotLine(a, b, c, label='', axis=None, nPoints=3, color='k'):
     if axis is None:
         return ax
 
+
+def plotBoundary(model, x1Range, x2Range, axis=None, transform=None,\
+                 color='g', label='hypothesis', axis_res=200, fontsize=15):
+    '''
+    Given a model and an x1 and x2 range, this will plot the 2d
+    decision boundary of the model. For example, use this to find
+    the 2d decision boundary of an SVM with a kernel function
+    '''
+    ax = axis if axis else plt.subplot(111)
+
+    x1 = np.linspace(*x1Range, axis_res)
+    x2 = np.linspace(*x2Range, axis_res)
+    X1, X2 = np.meshgrid(x1, x2)
+    X_n = np.hstack((X1.flatten()[:, np.newaxis],\
+                     X2.flatten()[:, np.newaxis]))
+    X_n = X_n if not transform else transform(X_n)
+    sigs = np.array(model.signal(X_n)).reshape(X1.shape)
+    CS = ax.contour(X1, X2, sigs, levels=[0], colors=color)
+    ax.clabel(CS, [0], fmt={0.:label}, inline=True, fontsize=fontsize)
+
+    if axis is None:
+        return ax
+
+
 def plotE_ins(E_ins, axis=None):
     '''Plots E_in progression over iterations'''
     ax = axis if axis else plt.subplot(111)
@@ -138,7 +200,7 @@ def plotE_ins(E_ins, axis=None):
     if axis is None:
         return ax
 
-def quickScatter(X, Y, axis=None):
+def quickScatter(X, Y, axis=None, alpha=1.0):
     '''
     For two dimensional input data and corresponding outputs,
     this will plot all the points in the data, useful for quick visualization
@@ -149,13 +211,12 @@ def quickScatter(X, Y, axis=None):
     ax = axis if axis else plt.subplot(111)
 
     inds = (Y == 1)
-    ax.plot(X[inds, -2], X[inds, -1], 'b+')
-    ax.plot(X[~inds, -2], X[~inds, -1], 'r_')
+    ax.plot(X[inds, -2], X[inds, -1], 'b+', alpha=alpha)
+    ax.plot(X[~inds, -2], X[~inds, -1], 'r_', alpha=alpha)
     ax.set_xlabel('X1')
     ax.set_ylabel('X2')
     ax.set_xlim([X[:, -2].min(), X[:, -2].max()])
     ax.set_xlim([X[:, -1].min(), X[:, -1].max()])
-    ax.legend()
 
     if axis is None:
         return ax
@@ -179,3 +240,5 @@ def plot_confusions(grid, axis = None):
     if axis is None:
         return ax
 
+def rand_hex():
+    return '#%02X%02X%02X' % tuple(np.random.randint(256, size=3))
