@@ -38,7 +38,7 @@ class LinearModel():
             keep_b_col: Boolean flag, set to true to interpret X
                         as having an extra 1 at the front / w_0 weight
                         Set to false to get back X without ones column
-            dim: the expected length of input vectors 
+            dim: the expected length of input vectors
                  (including the 1 at the front for the bias term).
                  leave as None to use the model's _size attribute.
         '''
@@ -86,7 +86,7 @@ class LinearModel():
         X = self.check_input_dim(X)
         self._weights = np.dot(np.linalg.pinv(X), Y)
         # Return to be consistent
-        return 1, np.array([self.findE_in(X, Y, do_transform=False)]) 
+        return 1, np.array([self.findE_in(X, Y, do_transform=False)])
 
 
     def boundary2D(self):
@@ -116,7 +116,7 @@ class LinearModel():
 
 
     def isDone(self, it, w_old, E_in, maxIters=None, wDiffBound=None,\
-                                                     errBound=None):
+                    errBound=None, errDiffBound=None, E_in_old=None):
         '''Check many termination conditions to decide if learning is done.'''
         if maxIters is not None and it >= maxIters:
             return True
@@ -126,6 +126,10 @@ class LinearModel():
             return True
 
         if errBound is not None and E_in <= errBound:
+            return True
+
+        if errDiffBound is not None and E_in_old is not None and \
+           E_in_old - E_in <= errDiffBound:
             return True
 
         return False
@@ -209,7 +213,7 @@ class LogisticRegression(LinearModel):
     the loss function.
     '''
     def theta(self, x):
-        return np.exp(x) / (1 + np.exp(x))
+        return 1 / (1 + np.exp(-x))
 
 
     def __call__(self, x, do_transform=True):
@@ -225,10 +229,11 @@ class LogisticRegression(LinearModel):
         return np.log(1 + np.exp(-y * self.signal(x)))
 
 
-    def fit(self, X, Y, eta=0.1, useBatch=False, **conditions):
+    def fit(self, X, Y, eta=0.1, useBatch=False, useIRLS=True, **conditions):
         '''
-        Given training data, will learn from it. Will use either stochastic
-        or batch gradient descent to update the weights.
+        Given training data, will learn from it. Will use
+        either stochastic / batch gradient descent to update the weights.
+        (OR IRLS if useIRLS is True, note that this will convert Y to zero_one output)
         Set trackE_in to true to calculate
         E_in after every epoch. Will continue updating till one of the
         conditions is met (conditions can be passed in as keyword arguments,
@@ -242,6 +247,7 @@ class LogisticRegression(LinearModel):
         # Get termination conditions
         maxIters = conditions.get('maxIters', None)
         errBound = conditions.get('errBound', None)
+        errDiffBound = conditions.get('errDiffBound', 1e-5)
         wDiffBound = conditions.get('wDiffBound', 0.01)
 
         # Define variables pertaining to termination
@@ -249,6 +255,8 @@ class LogisticRegression(LinearModel):
         w_old = self._weights.copy()
         E_ins = [self.findE_in(X, Y, do_transform=False)]
 
+        if useIRLS:
+            Y = u.conv_bin_labels(Y, to_zero_one=True)
         inds = np.arange(X.shape[0])
 
         # Initial check for termination
@@ -257,8 +265,18 @@ class LogisticRegression(LinearModel):
 
         while True:
             w_old = self._weights.copy()
+            E_in_old = E_ins[-1]
 
-            if useBatch:
+            if useIRLS:
+                P = self.theta(self.signal(X))
+                W = np.diag((1-P) * P)
+                to_invert = X.T @ W @ X
+                # Break before we hit numerical issues
+                if (np.linalg.matrix_rank(to_invert) < self._size):
+                    print("Singular matrix found during iteration!")
+                    return it, np.array(E_ins)
+                self._weights += np.linalg.inv(to_invert) @ X.T @ (Y - P)
+            elif useBatch:
                 s = -Y * self.signal(X)
                 grad = np.dot((-Y * self.theta(s)), X)
                 self._weights -= eta * grad
@@ -275,6 +293,6 @@ class LogisticRegression(LinearModel):
             E_ins.append(self.findE_in(X, Y, do_transform=False))
 
             # Check if to terminate
-            if self.isDone(it, w_old, E_ins[-1],\
-                           maxIters, wDiffBound, errBound):
+            if self.isDone(it, w_old, E_ins[-1], maxIters, wDiffBound,
+                           errBound, errDiffBound, E_in_old):
                 return it, np.array(E_ins)

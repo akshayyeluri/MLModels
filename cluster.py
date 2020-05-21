@@ -127,29 +127,29 @@ def GMM(X, k, n_iter=5, retAll = False, init_pars=None):
     else:
         mu, var, pi = init_pars
         clust_probs = c_probs(X, mu, var, pi)
- 
+
     p_old = neg_log_like(X, (mu, var, pi))
-    
+
     # Maybe save things
     if retAll:
         allC = [clust_probs]; allRep = [mu]; allP = [p_old];
-        
+
     # Run the kmeans algorithm till the clustering converges
     for i in range(n_iter):
-        
+
         # Maximization
         mu, var, pi = pars(X, clust_probs)
-        
+
         # Expectation
         clust_probs = c_probs(X, mu, var, pi)
-    
+
         p = neg_log_like(X, (mu, var, pi))
         if p >= p_old:
             break
         p_old = p
-        
+
         # Maybe save things:
         if retAll:
             allC += [clust_probs]; allRep += [mu]; allP += [p];
-           
+
     return ((mu, var, pi), clust_probs) + ((allRep, allC, allP) if retAll else ())

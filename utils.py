@@ -65,6 +65,11 @@ def genPoints(nPoints=1):
     ''' Generate points in interval [-1, 1] x [-1, 1]'''
     return np.random.rand(nPoints, 2) * 2 - 1
 
+def conv_bin_labels(labels, to_zero_one=True):
+    if to_zero_one:
+        return (labels + 1) // 2
+    return labels * 2 - 1
+
 def genF(zero_one=False):
     '''
     Generate a random function f: [-1, 1] x [-1, 1] -> {-1, 1}. Returns both
@@ -89,7 +94,7 @@ def genF(zero_one=False):
 
 def genCircleF(r=None, zero_one=False):
     '''
-    Generate a function f: R^2 -> {-1, 1} (or {0,1} if zero_one is True), 
+    Generate a function f: R^2 -> {-1, 1} (or {0,1} if zero_one is True),
     that is a binary classifier,
     where points outside a circle of radius r are mapped to +1, and points
     inside are mapped to -1. Returns this function, and the circle radius.

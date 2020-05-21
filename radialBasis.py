@@ -10,21 +10,21 @@ def rbf_transform(X, reps, gamma=1):
     '''
     The nonlinear transform associated with radial basis functions.
     Takes a matrix X and a matrix of representatives reps,
-    computes the transform matrix M, where 
+    computes the transform matrix M, where
     M_ij = exp(-gamma * ||x_i - reps_j||^2)
     '''
     X = np.atleast_2d(X)
     reps = np.atleast_2d(reps)
-    
+
     (N,d), (k,d2) = X.shape, reps.shape
     if d != d2:
         raise ValueError('Dimension mismatch for X/reps')
-        
+
     sq_norms = (X[:, np.newaxis, :] - reps[np.newaxis, :, :]) ** 2
-    ans = - gamma * np.sum(sq_norms, axis=2)      
+    ans = - gamma * np.sum(sq_norms, axis=2)
     return np.exp(ans)
-        
-        
+
+
 # Radial basis functions, these are a subclass of linear models
 # because they can be interpreted as a linear model applied to a
 # nonlinear transform of inputs
@@ -38,17 +38,17 @@ class RBF(LinearClassifier):
         X -- representatives / centers for gaussians
         gamma -- precision of gaussians
     '''
-    def __init__(self, k, gamma=1): 
+    def __init__(self, k, gamma=1):
         super(RBF, self).__init__(k) # sets _size and _weights
         self.gamma = gamma
         self.rep = None
-                                                            
+
 
     def fit(self, X, Y, **conditions):
         self.rep = kmeans(X, self._size, **conditions)[0]
         self.transform = lambda x: rbf_transform(x, self.rep, self.gamma)
         return super(RBF, self).fit(X, Y, **conditions)
-                                                                           
+
 
     def plot_reps(self, axis=None, c='k', marker='o', alpha=1.0, s=50):
         if (self.rep is None) or self.rep.shape[1] != 2:
